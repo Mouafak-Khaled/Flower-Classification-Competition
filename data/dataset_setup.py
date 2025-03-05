@@ -3,7 +3,7 @@ import tarfile
 import logging
 import urllib.request
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from urllib.error import URLError, HTTPError
 from utils.logging_configs import setup_logging
 
@@ -61,12 +61,12 @@ def download_dataset(dataset_url: str, dir_path: Path, filename: str) -> bool:
     return False
 
 
-def extract_data(data_path: Path, output_path: Path) -> bool:
+def extract_data(data_path: Path, extract_to: Path) -> bool:
     """
     Extracts a .tgz dataset to the specified directory (`data/raw`).
 
     Args:
-        archive_path (Path): Path to the .tgz file.
+        data_path (Path): Path to the .tgz file.
         extract_to (Path): Directory where the dataset should be extracted (`data/raw`).
 
     Returns:
@@ -79,19 +79,19 @@ def extract_data(data_path: Path, output_path: Path) -> bool:
     """
     try:
         # Ensure extraction directory exists
-        output_path.mkdir(parents=True, exist_ok=True)
+        extract_to.mkdir(parents=True, exist_ok=True)
 
         # Check if already extracted (assumption: extracted files are inside the directory)
-        if any(output_path.iterdir()):
-            logging.info(f"Dataset already extracted at {output_path}. Skipping extraction.")
+        if any(extract_to.iterdir()):
+            logging.info(f"Dataset already extracted at {extract_to}. Skipping extraction.")
             return True
 
-        logging.info(f"Extracting dataset from {data_path} to {output_path}...")
+        logging.info(f"Extracting dataset from {data_path} to {extract_to}...")
 
         with tarfile.open(data_path, "r:gz") as tar:
-            tar.extractall(path=output_path)
+            tar.extractall(path=extract_to)
 
-        logging.info(f"Dataset extracted successfully to {output_path}")
+        logging.info(f"Dataset extracted successfully to {extract_to}")
         return True
 
     except tarfile.TarError as e:
@@ -141,15 +141,77 @@ def read_data_from_txt_file(
             raise ValueError("File is empty or does not contain valid image names.")
 
         extension = "." + extension.lstrip(".")  # Ensure extension starts with '.'
-        dataset = {}
+        # dataset = {}
+        dataset = []
 
         for index, image_name in enumerate(lines):
             if image_name.endswith(extension):
                 class_id = index // images_per_class + 1
-                dataset.setdefault(class_id, []).append(image_name)
+                # dataset.setdefault(class_id, []).append(image_name)
+                dataset.append((image_name, class_id))
 
         return dataset
 
     except Exception as e:
         logging.error(f"Error reading file {file_path}: {e}")
         raise
+
+
+def process_dataset_pipeline(
+    dataset_url: str,
+    download_dir: Path,
+    archive_filename: str,
+    extract_dir: Path,
+    file_list_path: Path
+) -> Optional[List[Tuple[str, int]]]:
+    """
+    Orchestrates the dataset preparation pipeline, including downloading, extracting, and parsing dataset metadata.
+
+    This function:
+    1. Downloads the dataset archive from a given URL.
+    2. Extracts the archive contents to a specified directory.
+    3. Reads and parses image metadata from a given text file.
+
+    Args:
+        dataset_url (str): The URL of the dataset to download.
+        download_dir (Path): Directory where the dataset archive should be downloaded.
+        archive_filename (str): The name of the downloaded dataset archive file.
+        extract_dir (Path): Directory where the dataset should be extracted.
+        file_list_path (Path): Path to the text file containing image names and metadata.
+
+    Returns:
+        Optional[List[Tuple[str, int]]]: A list of tuples where each tuple contains:
+            - str: The image file name.
+            - int: The assigned class ID.
+
+        Returns `None` if any step in the pipeline fails.
+
+    Raises:
+        HTTPError: If an HTTP error occurs during dataset download.
+        URLError: If there is an issue with the dataset URL.
+        OSError: If file system-related errors occur.
+        ValueError: If the dataset file is empty or invalid.
+        Exception: If any other unexpected error occurs.
+    """
+
+    # Step 1: Download the dataset
+    dataset_downloaded = download_dataset(dataset_url, download_dir, archive_filename)
+    if not dataset_downloaded:
+        logging.error(f"Failed to download dataset from {dataset_url}. Aborting pipeline.")
+        return None
+
+    # Step 2: Extract dataset
+    archive_path = download_dir / archive_filename
+    extraction_success = extract_data(archive_path, extract_dir)
+    if not extraction_success:
+        logging.error(f"Failed to extract dataset from {archive_path}. Aborting pipeline.")
+        return None
+
+    # Step 3: Read dataset metadata
+    try:
+        dataset_metadata = read_data_from_txt_file(file_list_path)
+        return dataset_metadata
+
+    except Exception as e:
+        logging.error(f"Error reading dataset metadata from {file_list_path}: {e}")
+        return None
