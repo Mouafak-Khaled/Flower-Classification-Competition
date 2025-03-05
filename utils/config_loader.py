@@ -28,7 +28,6 @@ def load_config(config_path:  Path) -> Dict[str, Any]:
         yaml.YAMLError: If there is an error parsing the YAML file.
         Exception: If an unexpected error occurs.
     """
-    config_path = Path(config_path)
 
     if not config_path.exists():
         logging.error(f"Configuration file not found: {config_path}")
