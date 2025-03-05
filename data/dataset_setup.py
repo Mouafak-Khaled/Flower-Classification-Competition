@@ -1,5 +1,6 @@
 import os
 import tarfile
+from typing import Dict, List, Optional
 from pathlib import Path
 import urllib.request
 import logging
@@ -92,3 +93,52 @@ def extract_data(data_path: Path, output_path: Path) -> bool:
         logging.error(f"Unexpected error: {e}")
 
     return False
+
+
+def read_data_from_txt_file(
+    file_path: Path, images_per_class: Optional[int] = 80, extension: Optional[str] = "jpg"
+) -> Dict[int, List[str]]:
+    """
+    Reads and parses a text file containing image names and organizes them into classes.
+
+    The function assumes:
+    - Images are listed sequentially and grouped into classes.
+    - Each class contains a fixed number of images (`images_per_class`).
+    - Only files with the specified extension (`extension`) are included.
+
+    Args:
+        file_path (Path): Path to the text file containing image names.
+        images_per_class (Optional[int]): The number of images per class. Default is 80.
+        extension (Optional[str]): The expected file extension (without a dot). Default is "jpg".
+
+    Returns:
+        Dict[int, List[str]]: A dictionary mapping class IDs to lists of image names.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        ValueError: If the file is empty or does not contain valid image names.
+        Exception: If any other error occurs during file reading.
+    """
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    try:
+        with file_path.open(mode="r") as file:
+            lines = [line.strip() for line in file.readlines()]
+
+        if not lines:
+            raise ValueError("File is empty or does not contain valid image names.")
+
+        extension = "." + extension.lstrip(".")  # Ensure extension starts with '.'
+        dataset = {}
+
+        for index, image_name in enumerate(lines):
+            if image_name.endswith(extension):
+                class_id = index // images_per_class + 1
+                dataset.setdefault(class_id, []).append(image_name)
+
+        return dataset
+
+    except Exception as e:
+        logging.error(f"Error reading file {file_path}: {e}")
+        raise
