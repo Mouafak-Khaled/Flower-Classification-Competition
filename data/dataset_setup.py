@@ -157,61 +157,78 @@ def read_data_from_txt_file(
         raise
 
 
-def process_dataset_pipeline(
-    dataset_url: str,
-    download_dir: Path,
-    archive_filename: str,
-    extract_dir: Path,
-    file_list_path: Path
-) -> Optional[List[Tuple[str, int]]]:
+def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[List[Tuple[str, int]]]:
     """
-    Orchestrates the dataset preparation pipeline, including downloading, extracting, and parsing dataset metadata.
+    Executes the dataset preparation pipeline, including downloading, extracting, and parsing dataset metadata.
 
-    This function:
-    1. Downloads the dataset archive from a given URL.
-    2. Extracts the archive contents to a specified directory.
-    3. Reads and parses image metadata from a given text file.
+    This function performs the following steps:
+    1. Download Dataset: Retrieves the dataset archive from a specified URL.
+    2. Extract Dataset: Extracts the dataset contents into a specified directory.
+    3. Read Metadata: Reads and parses image metadata from a text file.
 
     Args:
-        dataset_url (str): The URL of the dataset to download.
-        download_dir (Path): Directory where the dataset archive should be downloaded.
-        archive_filename (str): The name of the downloaded dataset archive file.
-        extract_dir (Path): Directory where the dataset should be extracted.
-        file_list_path (Path): Path to the text file containing image names and metadata.
+        configurations (Dict[str, Any]): Dictionary containing dataset configuration parameters.
+            Expected keys:
+            - "dataset_url" (str): URL of the dataset to download.
+            - "root_dir" (Path): Directory where the dataset will be stored.
+            - "archive_filename" (str): Name of the dataset archive file.
+            - "extract_dir" (Path): Directory where extracted dataset contents will be stored.
+            - "file_list_path" (Path): Path to the text file containing image metadata.
 
     Returns:
         Optional[List[Tuple[str, int]]]: A list of tuples where each tuple contains:
-            - str: The image file name.
-            - int: The assigned class ID.
+            - `str`: The image file name.
+            - `int`: The corresponding class ID.
 
         Returns `None` if any step in the pipeline fails.
 
     Raises:
+        FileNotFoundError: If the specified dataset metadata file is missing.
         HTTPError: If an HTTP error occurs during dataset download.
-        URLError: If there is an issue with the dataset URL.
-        OSError: If file system-related errors occur.
-        ValueError: If the dataset file is empty or invalid.
+        URLError: If the dataset URL is unreachable or invalid.
+        OSError: If file system-related errors occur (e.g., permission issues).
+        ValueError: If the dataset metadata file is empty or incorrectly formatted.
         Exception: If any other unexpected error occurs.
     """
-
-    # Step 1: Download the dataset
-    dataset_downloaded = download_dataset(dataset_url, download_dir, archive_filename)
-    if not dataset_downloaded:
-        logging.error(f"Failed to download dataset from {dataset_url}. Aborting pipeline.")
-        return None
-
-    # Step 2: Extract dataset
-    archive_path = download_dir / archive_filename
-    extraction_success = extract_data(archive_path, extract_dir)
-    if not extraction_success:
-        logging.error(f"Failed to extract dataset from {archive_path}. Aborting pipeline.")
-        return None
-
-    # Step 3: Read dataset metadata
     try:
-        dataset_metadata = read_data_from_txt_file(file_list_path)
-        return dataset_metadata
+        dataset_url = configurations["dataset_url"]
+        download_dir = Path(configurations["root_dir"])
+        archive_filename = configurations["archive_filename"]
+        extract_dir = Path(configurations["extract_dir"])  # Fixed incorrect key spacing
+        file_list_path = Path(configurations["file_list_path"])
+
+        # Step 1: Download the dataset
+        dataset_downloaded = download_dataset(dataset_url, download_dir, archive_filename)
+        if not dataset_downloaded:
+            logging.error(f"Failed to download dataset from {dataset_url}.")
+            return None
+
+        # Step 2: Extract dataset
+        archive_path = download_dir / archive_filename
+        extraction_success = extract_data(archive_path, extract_dir)
+        if not extraction_success:
+            logging.error(f"Failed to extract dataset from {archive_path}.")
+            return None
+
+        # Step 3: Read dataset metadata
+        try:
+            dataset_metadata = read_data_from_txt_file(file_list_path)
+            return dataset_metadata
+
+        except FileNotFoundError as e:
+            logging.error(f"Metadata file not found at {file_list_path}: {e}")
+        except ValueError as e:
+            logging.error(f"Invalid or empty dataset metadata file {file_list_path}: {e}")
+        except Exception as e:
+            logging.error(f"Unexpected error while reading metadata from {file_list_path}: {e}")
+
+        return None
+
+    except KeyError as e:
+        logging.error(f"Missing required configuration key: {e}")
 
     except Exception as e:
-        logging.error(f"Error reading dataset metadata from {file_list_path}: {e}")
-        return None
+        logging.error(f"Unexpected error in dataset processing pipeline: {e}")
+
+    return None
+
