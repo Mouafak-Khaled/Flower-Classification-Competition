@@ -1,9 +1,12 @@
 import os
 import tarfile
+import shutil
+import random
 import logging
 import urllib.request
+import numpy as np
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from urllib.error import URLError, HTTPError
 from utils.logging_configs import setup_logging
 
@@ -141,14 +144,12 @@ def read_data_from_txt_file(
             raise ValueError("File is empty or does not contain valid image names.")
 
         extension = "." + extension.lstrip(".")  # Ensure extension starts with '.'
-        # dataset = {}
-        dataset = []
+        dataset = {}
 
         for index, image_name in enumerate(lines):
             if image_name.endswith(extension):
                 class_id = index // images_per_class + 1
-                # dataset.setdefault(class_id, []).append(image_name)
-                dataset.append((image_name, class_id))
+                dataset.setdefault(class_id, []).append(image_name)
 
         return dataset
 
@@ -157,7 +158,7 @@ def read_data_from_txt_file(
         raise
 
 
-def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[List[Tuple[str, int]]]:
+def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[Dict[int, List[str]]]:
     """
     Executes the dataset preparation pipeline, including downloading, extracting, and parsing dataset metadata.
 
@@ -176,9 +177,9 @@ def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[List[Tu
             - "file_list_path" (Path): Path to the text file containing image metadata.
 
     Returns:
-        Optional[List[Tuple[str, int]]]: A list of tuples where each tuple contains:
-            - `str`: The image file name.
+        Optional[Dict[int, List[str]]]: A dictionary mapping class IDs to lists of image names:
             - `int`: The corresponding class ID.
+            - `List[str]`: A list of images belong to the corresponding class.
 
         Returns `None` if any step in the pipeline fails.
 
@@ -192,10 +193,10 @@ def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[List[Tu
     """
     try:
         dataset_url = configurations["dataset_url"]
-        download_dir = Path(configurations["root_dir"])
+        download_dir = Path(configurations["root_dir"]).resolve()
         archive_filename = configurations["archive_filename"]
-        extract_dir = Path(configurations["extract_dir"])  # Fixed incorrect key spacing
-        file_list_path = Path(configurations["file_list_path"])
+        extract_dir = Path(configurations["extract_dir"]).resolve() # Fixed incorrect key spacing
+        file_list_path = Path(configurations["txt_file"]).resolve()
 
         # Step 1: Download the dataset
         dataset_downloaded = download_dataset(dataset_url, download_dir, archive_filename)
@@ -217,8 +218,10 @@ def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[List[Tu
 
         except FileNotFoundError as e:
             logging.error(f"Metadata file not found at {file_list_path}: {e}")
+
         except ValueError as e:
             logging.error(f"Invalid or empty dataset metadata file {file_list_path}: {e}")
+
         except Exception as e:
             logging.error(f"Unexpected error while reading metadata from {file_list_path}: {e}")
 
@@ -231,4 +234,89 @@ def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[List[Tu
         logging.error(f"Unexpected error in dataset processing pipeline: {e}")
 
     return None
+
+
+def split_organize_dataset(
+        dataset_metadata: List[Tuple[str, int]],
+        configurations: Dict[str, Any]
+):
+    """
+    Splits a list of (image, label) tuples into training, validation, and test sets based on given ratios.
+    Organizes images into structured directories `{processed_data_dir}/train/{class_id}/`, `{processed_data_dir}/val/{class_id}/`, etc.
+
+    Args:
+        dataset_metadata (List[Tuple[str, int]]): A list where each element is:
+            - `str`: Image filename (relative to `extract_dir`).
+            - `int`: Corresponding class label.
+        configurations (Dict[str, Any]): Configuration dictionary containing:
+            - "extract_dir" (str): Directory where extracted dataset is stored.
+            - "processed_data_dir" (str): Directory where split dataset will be saved.
+            - "train_split" (float): Proportion of dataset for training.
+            - "val_split" (float): Proportion of dataset for validation.
+            - "test_split" (float): Proportion of dataset for testing.
+            - "seed" (int): Random seed for reproducibility.
+
+    Returns:
+        None
+
+    Raises:
+        ValueError: If split ratios do not sum to 1.
+        FileNotFoundError: If an image file is missing.
+        Exception: For unexpected errors.
+    """
+
+    # Load configuration values
+    extract_dir = (Path(configurations["extract_dir"]) / "jpg").resolve()  # Image source directory
+    processed_data_dir = Path(configurations["processed_data_dir"])  # Output directory
+    train_ratio = configurations["train_split"]
+    val_ratio = configurations["val_split"]
+    test_ratio = configurations["test_split"]
+    seed = configurations["seed"]
+
+    # Ensure split ratios sum to 1
+    total_ratio = train_ratio + val_ratio + test_ratio
+    if not np.isclose(total_ratio, 1.0, atol=1e-3):
+        raise ValueError(f"Split ratios must sum to 1. Found: {total_ratio}")
+
+    # Set random seed for reproducibility
+    random.seed(seed)
+
+    # Create output directories
+    for split in ["train", "val", "test"]:
+        (processed_data_dir / split).mkdir(parents=True, exist_ok=True)
+
+    #Split and copy images
+    for class_id, images in dataset_metadata.items():
+        random.shuffle(images)  # Shuffle images to ensure randomness
+
+        num_total = len(images)
+        num_train = int(train_ratio * num_total)
+        num_val = int(val_ratio * num_total)
+
+        # Ensure random sampling
+        train_images = random.sample(images, num_train)
+        remaining_images = list(set(images) - set(train_images))
+        val_images = random.sample(remaining_images, num_val)
+        test_images = list(set(remaining_images) - set(val_images))
+
+        # Organize and copy images
+        for split_name, split_images in zip(["train", "val", "test"], [train_images, val_images, test_images]):
+            class_dir = processed_data_dir / split_name / str(class_id)
+            class_dir.mkdir(parents=True, exist_ok=True)
+
+            for image in split_images:
+                source_path = extract_dir / image
+                dest_path = class_dir / image
+
+                if not source_path.exists():
+                    logging.error(f"File not found: {source_path}")
+                    continue
+
+                shutil.copy(source_path, dest_path)
+
+        logging.info(
+            f"Processed Class {class_id}: Train {len(train_images)}, Val {len(val_images)}, Test {len(test_images)}"
+        )
+
+    logging.info("Dataset splitting and organization completed successfully.")
 
