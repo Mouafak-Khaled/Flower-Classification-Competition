@@ -320,3 +320,36 @@ def split_organize_dataset(
 
     logging.info("Dataset splitting and organization completed successfully.")
 
+
+def read_processed_data(root_dir: Path, mode: str) -> Optional[List[Tuple[Path, int]]]:
+    """
+    Reads processed image data from a given directory and returns a list of image paths with corresponding labels.
+
+    Args:
+        root_dir (Path): The root directory containing processed data (e.g., "processed").
+        mode (str): The mode to read from ("train", "val", or "test").
+
+    Returns:
+        Optional[List[Tuple[Path, int]]]: A list of tuples where each tuple contains:
+            - The absolute Path to an image file.
+            - The integer label corresponding to its class.
+        Returns None if the directory does not exist.
+    """
+
+    target_dir = root_dir / mode
+
+    if not target_dir.exists():
+        logging.error(f"Directory not found: {target_dir}")
+        return None
+
+    data = []
+    for directory in sorted(target_dir.iterdir()):
+
+        label = int(directory.name)
+
+        if directory.is_dir():
+            images = [(img_file.resolve(), label) for img_file in directory.glob("*.jpg")]
+            data.extend(images)
+
+    return data
+
