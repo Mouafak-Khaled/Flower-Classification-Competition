@@ -1,10 +1,14 @@
 import os
 import tarfile
-from typing import Dict, List, Optional
-from pathlib import Path
-import urllib.request
 import logging
+import urllib.request
+from pathlib import Path
+from typing import Dict, List, Optional
 from urllib.error import URLError, HTTPError
+from utils.logging_configs import setup_logging
+
+
+setup_logging()
 
 
 def download_dataset(dataset_url: str, dir_path: Path, filename: str) -> bool:
@@ -33,11 +37,14 @@ def download_dataset(dataset_url: str, dir_path: Path, filename: str) -> bool:
 
         # Check if dataset already exists
         if file_path.exists():
+            logging.info(f"Dataset already exists at {file_path}. Skipping download.")
             return True
+
+        logging.info(f"Downloading dataset from {dataset_url}...")
 
         urllib.request.urlretrieve(dataset_url, file_path)
 
-        return True
+        logging.info(f"Dataset downloaded successfully: {file_path}")
 
     except HTTPError as e:
         logging.error(f"HTTP error occurred: {e.code} - {e.reason}")
@@ -74,13 +81,17 @@ def extract_data(data_path: Path, output_path: Path) -> bool:
         # Ensure extraction directory exists
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Check if already extracted (assumption: extracted files are inside `jpg/`)
+        # Check if already extracted (assumption: extracted files are inside the directory)
         if any(output_path.iterdir()):
+            logging.info(f"Dataset already extracted at {output_path}. Skipping extraction.")
             return True
+
+        logging.info(f"Extracting dataset from {data_path} to {output_path}...")
 
         with tarfile.open(data_path, "r:gz") as tar:
             tar.extractall(path=output_path)
 
+        logging.info(f"Dataset extracted successfully to {output_path}")
         return True
 
     except tarfile.TarError as e:
