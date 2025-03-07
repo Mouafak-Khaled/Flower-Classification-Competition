@@ -2,7 +2,7 @@ from PIL import Image
 from pathlib import Path
 from torch.utils.data import Dataset
 from typing import List, Tuple, Any, Optional
-from data.dataset_setup import read_processed_data
+from data.setup import read_processed_data
 
 
 class FlowerDataset(Dataset):
