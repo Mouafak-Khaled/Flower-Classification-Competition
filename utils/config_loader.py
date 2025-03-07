@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Any
 from hydra import initialize, compose
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig
 from .logging_configs import setup_logging
 
 
