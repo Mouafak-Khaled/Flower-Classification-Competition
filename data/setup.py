@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from urllib.error import URLError, HTTPError
-from utils.logging_configs import setup_logging
+from loaders.logging_configs import setup_logging
 
 
 setup_logging()
