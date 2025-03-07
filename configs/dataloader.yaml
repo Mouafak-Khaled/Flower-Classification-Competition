@@ -1,0 +1,18 @@
+dataloader:
+  train:
+    num_workers: 4
+    pin_memory: True
+    batch_size: 32
+    shuffle: True  # Shuffle for training
+
+  val:
+    num_workers: 4
+    pin_memory: True
+    batch_size: 64
+    shuffle: False  # Do not shuffle for validation
+
+  test:
+    num_workers: 4
+    pin_memory: True
+    batch_size: 64
+    shuffle: False  # No shuffle for test
