@@ -321,35 +321,50 @@ def split_organize_dataset(
     logging.info("Dataset splitting and organization completed successfully.")
 
 
-def read_processed_data(root_dir: Path, mode: str) -> Optional[List[Tuple[Path, int]]]:
+def read_processed_data(root_dir: Path, mode: str, extension: Optional[str] = 'jpg') -> List[Tuple[Path, int]]:
     """
     Reads processed image data from a given directory and returns a list of image paths with corresponding labels.
+
+    This function:
+    - Verifies that the specified dataset mode directory (`train`, `val`, or `test`) exists and is not empty.
+    - Iterates through subdirectories (class folders) and extracts image file paths.
+    - Assigns each image a label based on its parent directory name.
+    - Skips any empty class directories but does not raise an error if some are empty.
 
     Args:
         root_dir (Path): The root directory containing processed data (e.g., "processed").
         mode (str): The mode to read from ("train", "val", or "test").
 
     Returns:
-        Optional[List[Tuple[Path, int]]]: A list of tuples where each tuple contains:
+        List[Tuple[Path, int]]: A list of tuples where each tuple contains:
             - The absolute Path to an image file.
             - The integer label corresponding to its class.
-        Returns None if the directory does not exist.
+
+    Raises:
+        FileNotFoundError: If the specified dataset mode directory does not exist or is entirely empty.
+        Exception: If the specified dataset is empty.
     """
 
     target_dir = root_dir / mode
 
-    if not target_dir.exists():
-        logging.error(f"Directory not found: {target_dir}")
-        return None
+    if not (target_dir.exists() and any(target_dir.iterdir())):
+        logging.error(f"Directory not found or empty: {target_dir}")
+        raise FileNotFoundError(f"Processed dataset directory {target_dir} does not exist or is empty.")
 
     data = []
+
     for directory in sorted(target_dir.iterdir()):
-
-        label = int(directory.name)
-
         if directory.is_dir():
-            images = [(img_file.resolve(), label) for img_file in directory.glob("*.jpg")]
-            data.extend(images)
+            images = list(directory.glob(f"*.{extension}"))  # List images
+
+            if not images:
+                continue
+
+            label = int(directory.name)  # Use folder name as label
+            data.extend([(img.resolve(), label) for img in images])
+
+    if not data:
+        logging.error(f"Data is empty: {data}")
+        raise Exception(f"Data is empty: {data}. No data found in {target_dir}")
 
     return data
-
