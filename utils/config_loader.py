@@ -2,6 +2,8 @@ import yaml
 import logging
 from pathlib import Path
 from typing import Dict, Any
+from hydra import initialize, compose
+from omegaconf import OmegaConf, DictConfig
 from .logging_configs import setup_logging
 
 
@@ -44,3 +46,29 @@ def load_config(config_path:  Path) -> Dict[str, Any]:
     except Exception as exc:
         logging.error(f"Unexpected error while loading config file {config_path}: {exc}")
         raise
+
+
+def load_hydra_config(config_dir: Path, config_name: str) -> DictConfig:
+    """
+    Loads a Hydra configuration using OmegaConf and returns its contents as a DictConfig.
+
+    Args:
+        config_dir (Path): The directory containing the Hydra configuration files.
+        config_name (str): The base name of the configuration file (without the .yaml extension).
+
+    Returns:
+        DictConfig: A DictConfig object representing the Hydra configuration.
+
+    Raises:
+        Exception: If any error occurs during configuration loading or composition.
+    """
+    try:
+        with initialize(config_path=str(config_dir)):
+            cfg = compose(config_name=config_name)
+            logging.info("Hydra configuration loaded successfully.")
+            return cfg
+
+    except Exception as exc:
+        logging.error(f"Error loading Hydra configuration from {config_dir} with config name {config_name}: {exc}")
+        raise
+
