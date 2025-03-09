@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 from hydra.core.config_store import ConfigStore
+from utils.constants import BackboneNetwork
+from omegaconf import DictConfig
 
 
 @dataclass
@@ -61,6 +63,36 @@ class DataConfigs:
     dataloader: Dict[str, DataLoaderConfig]
 
 
+@dataclass
+class LightModelConfig:
+    num_classes: int
+    backbone: BackboneNetwork
+
+    def __post_init__(self):
+        """
+        Convert string backbone from YAML to BackboneNetwork Enum.
+        """
+        if isinstance(self.backbone, str):
+            try:
+                self.backbone = BackboneNetwork(self.backbone)
+            except ValueError:
+                raise ValueError(f"Invalid backbone '{self.backbone}'. Choose from {list(BackboneNetwork)}")
+
+
+@dataclass
+class TrainingConfig:
+    optimizer: DictConfig  # Store unstructured optimizer config
+    scheduler: DictConfig  # Store unstructured scheduler config
+    batch_size: int
+    epochs: int
+
+
+@dataclass
+class Configs:
+    model: ModelConfig  # ✅ Model-specific configurations
+    training: TrainingConfig  # ✅ Training-specific configurations
+
+
 """
 Register the configurations with Hydra's ConfigStore
 - This registers the `DataConfigs` dataclass with Hydra under the name 'data_configs'.
@@ -68,4 +100,5 @@ Register the configurations with Hydra's ConfigStore
 """
 cs = ConfigStore.instance()
 cs.store(name="data_configs", node=DataConfigs)
+cs.store(name="model_configs", node=Configs)
 
