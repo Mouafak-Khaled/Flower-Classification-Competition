@@ -1,62 +1,205 @@
+import torch
 import torch.nn as nn
-from utils.constants import BackboneNetwork
-import torchvision.models as models
+import lightning as L
+from omegaconf import DictConfig
+from typing import Dict, Any, List, Tuple
+from utils.metrics import accuracy
+from hydra.utils import instantiate
+from utils.utils import load_pretrained_model
 
 
-class FastFlowerClassifier(nn.Module):
+class FastFlowerClassifier(L.LightningModule):
+    """
+        A modular classifier for transfer learning, supporting multiple pre-trained backbones.
 
+        This model:
+        - Loads a pre-trained model as a feature extractor.
+        - Freezes the feature extractor layers (only the classifier head is trainable).
+        - Uses adaptive pooling to handle different feature map sizes.
+        - Supports multiple backbones: MobileNetV3, ResNet18, and EfficientNet-B0.
 
-    def __init__(self, num_classes: int, backbone: str):
-        self.num_classes = num_classes
-        self.backbone = backbone
+        Args:
+            configs (DictConfig): Configuration containing model, optimizer, and scheduler parameters.
+        """
 
-        self.feature_extractor, in_features = self._load_pretrained_model(backbone)
+    def __init__(self, configs: DictConfig):
+        """
+        Initializes the classifier, loads the feature extractor, and sets up the classifier head.
 
-        # Modify classifier head
+        Args:
+            configs (DictConfig): A Hydra configuration object containing:
+                - model: Backbone type, number of classes, and classifier settings.
+                - training: Optimizer and scheduler configurations.
+        """
+        super(FastFlowerClassifier, self).__init__()
+        self.configs = configs
+
+        # Load pre-trained feature extractor and get the number of output features
+        self.feature_extractor, in_features = load_pretrained_model(self.configs.model.backbone)
+
+        # Define the classifier head
         self.classifier = nn.Sequential(
-            nn.Linear(in_features, 64),
+            nn.Conv2d(in_features, 32, kernel_size=1, bias=self.configs.model.bias),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, bias=self.configs.model.bias),
+            nn.ReLU(),
+            nn.Conv2d(32, 32, kernel_size=3, bias=self.configs.model.bias),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.Flatten(start_dim=1),
+            nn.Linear(32, 32),
             nn.ReLU(),
             nn.Dropout(0.25),
-            nn.Linear(64, num_classes)
+            nn.Linear(32, self.configs.model.num_classes)
         )
-        self.flatten = nn.Flatten(start_dim=1)
+
+        # Freeze feature extractor (only train the classifier head)
+        for param in self.feature_extractor.parameters():
+            param.requires_grad = False
+
+        self.loss_fn = instantiate(self.configs.loss)
+        # Track outputs per batch for epoch-level metrics
+        self.training_step_outputs = []
+        self.validation_step_outputs = []
+        self.test_step_outputs = []
 
 
-    def _load_pretrained(self):
-
-        assert self.backbone in BackboneNetwork.list(), f"Backbone Network '{backbone}' is not supported."
-
-        if self.backbone == BackboneNetwork.MOBILE_NET:
-            model = models.mobilenet_v3_small(pretrained=True)
-            feature_extractor = model.features
-            in_features = model.classifier[0].in_features
-
-            return feature_extractor, in_features
-        if self.backbone == BackboneNetwork.RESNET:
-            model = models.resnet18(pretrained=True)
-            feature_extractor = nn.Sequential(*list(model.children())[:-1])  # Remove last FC layer
-            in_features = model.fc.in_features
-
-            return feature_extractor, in_features
-
-        if  self.backbone == BackboneNetwork.EFFICIENT_NET:
-            model = models.efficientnet_b0(pretrained=True)
-            feature_extractor = model.features
-            in_features = model.classifier[1].in_features
-
-
-            return feature_extractor, in_features
-
-
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward pass through the feature extractor and classifier.
+
+        Args:
+            x (torch.Tensor): Input tensor representing a batch of images.
+
+        Returns:
+            torch.Tensor: Predicted class scores (logits).
         """
-        x = self.feature_extractor(x)
-        x = self.flatten(x)  # Flatten for FC layers
-        x = self.classifier(x)
+        x = self.feature_extractor(x)  # CNN feature extraction
+        x = self.classifier(x)  # Classification head
         return x
 
 
-model = FastFlowerClassifier(num_classes=17, backbone=BackboneNetwork.EFFICIENT_NET).cuda()
-print(model)
+    def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        """
+        Executes a single training step, computes the loss, and stores batch outputs.
+
+        Args:
+            batch (Tuple[torch.Tensor, torch.Tensor]): A batch containing (images, labels).
+            batch_idx (int): The index of the batch.
+
+        Returns:
+            torch.Tensor: The computed loss for the batch.
+        """
+        loss, y_hat, y = self._step(batch)
+        self.training_step_outputs.append({'predictions': y_hat, 'labels': y, 'loss': loss})
+        return loss
+
+
+    def on_train_epoch_end(self) -> None:
+        """
+        Computes and logs the average loss and accuracy at the end of each training epoch.
+        """
+        self._on_epoch_end(self.training_step_outputs, mode='train')
+
+
+    def validation_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        """
+        Executes a single validation step, computes the loss, and stores batch outputs.
+
+        Args:
+            batch (Tuple[torch.Tensor, torch.Tensor]): A batch containing (images, labels).
+            batch_idx (int): The index of the batch.
+
+        Returns:
+            torch.Tensor: The computed loss for the batch.
+        """
+        loss, y_hat, y = self._step(batch)
+        self.validation_step_outputs.append({'predictions': y_hat, 'labels': y, 'loss': loss})
+        return loss
+
+
+    def on_validation_epoch_end(self):
+        """
+        Computes and logs the average loss and accuracy at the end of each validation epoch.
+        """
+        self._on_epoch_end(self.validation_step_outputs, mode='val')
+
+
+    def test_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
+        """
+        Executes a single test step, computes the loss, and logs it.
+
+        Args:
+            batch (Tuple[torch.Tensor, torch.Tensor]): A batch containing (images, labels).
+            batch_idx (int): The index of the batch.
+
+        Returns:
+            torch.Tensor: The computed loss for the batch.
+        """
+        loss, _, _ = self._step(batch)
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        return loss
+
+
+    def on_test_epoch_end(self):
+        """
+        Computes and logs the average loss and accuracy at the end of each test epoch.
+        """
+        self._on_epoch_end(self.test_step_outputs, mode='test')
+
+
+    def _step(self, batch: Any) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Processes a batch, runs it through the model, and computes the loss.
+
+        Args:
+            batch (Tuple[torch.Tensor, torch.Tensor]): A batch containing (images, labels).
+
+        Returns:
+            Tuple[torch.Tensor, torch.Tensor, torch.Tensor]: Loss, model predictions, and true labels.
+        """
+        x, y = batch
+        x, y = x.to(self.device), y.to(self.device)
+        y_hat = self.forward(x)
+        loss = self.loss_fn(y_hat, y)
+        return loss, y_hat, y
+
+
+    def configure_optimizers(self):
+        """
+        Instantiates the optimizer and scheduler using Hydra.
+
+        Returns:
+            Tuple[List[torch.optim.Optimizer], List[torch.optim.lr_scheduler._LRScheduler]]:
+            The optimizer and learning rate scheduler.
+        """
+        optimizer = instantiate(self.configs.optimizer, self.parameters())
+        scheduler = instantiate(self.configs.scheduler, optimizer)
+        return [optimizer], [scheduler]
+
+
+    def _on_epoch_end(self, step_outputs: List[Dict[str, Any]], mode: str):
+        """
+        Aggregates batch outputs, computes epoch-level loss and accuracy, and logs them.
+
+        Args:
+            step_outputs (List[Dict[str, Any]]): List of batch outputs containing predictions, labels, and loss.
+            mode (str): One of 'train', 'val', or 'test' indicating the current phase.
+        """
+        if not step_outputs:
+            return
+
+        # Aggregate predictions, labels, and losses
+        predictions = torch.cat([x['predictions'] for x in step_outputs])
+        labels = torch.cat([x['labels'] for x in step_outputs])
+        avg_loss = torch.stack([x['loss'] for x in step_outputs]).mean()
+
+        # Compute epoch accuracy
+        epoch_acc = accuracy(predictions, labels, device=self.device)
+
+        # Log epoch metrics
+        self.log(f"{mode}_loss_epoch", avg_loss, prog_bar=True, on_epoch=True)
+        self.log(f"{mode}_acc_epoch", epoch_acc, prog_bar=True, on_epoch=True)
+
+        # Clear stored batch outputs
+        step_outputs.clear()
