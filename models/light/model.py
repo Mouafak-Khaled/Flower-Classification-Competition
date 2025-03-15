@@ -5,7 +5,7 @@ from omegaconf import DictConfig
 from typing import Dict, Any, List, Tuple
 from utils.metrics import accuracy
 from hydra.utils import instantiate
-from utils.utils import load_pretrained_model
+import torchvision.models  as models
 
 
 class FastFlowerClassifier(L.LightningModule):
@@ -35,33 +35,58 @@ class FastFlowerClassifier(L.LightningModule):
         self.configs = configs
 
         # Load pre-trained feature extractor and get the number of output features
-        self.feature_extractor, in_features = load_pretrained_model(self.configs.model.backbone)
+        self.classifier = self.build_model()
 
-        # Define the classifier head
-        self.classifier = nn.Sequential(
-            nn.Conv2d(in_features, 32, kernel_size=1, bias=self.configs.model.bias),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, bias=self.configs.model.bias),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, bias=self.configs.model.bias),
-            nn.MaxPool2d(kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.Flatten(start_dim=1),
-            nn.Linear(32, 32),
-            nn.ReLU(),
-            nn.Dropout(0.25),
-            nn.Linear(32, self.configs.model.num_classes)
-        )
-
-        # Freeze feature extractor (only train the classifier head)
-        for param in self.feature_extractor.parameters():
-            param.requires_grad = False
 
         self.loss_fn = instantiate(self.configs.loss)
         # Track outputs per batch for epoch-level metrics
         self.training_step_outputs = []
         self.validation_step_outputs = []
         self.test_step_outputs = []
+
+
+    def build_model(self) -> nn.Module:
+        """
+        Constructs a CNN model using MobileNetV3-Small as a feature extractor.
+
+        This function initializes a pre-trained MobileNetV3-Small model, removes its classification
+        layers, and builds a custom classifier on top of its feature extractor. The feature extractor's
+        parameters are frozen to prevent updates during training.
+
+        Returns:
+            nn.Module: A neural network model consisting of:
+                - A MobileNetV3-Small feature extractor with frozen weights.
+                - A custom classifier with convolutional, activation, pooling, and fully connected layers.
+
+        Raises:
+            ValueError: If an unsupported backbone is provided in the configurations.
+        """
+
+        # Load pre-trained MobileNetV3-Small model
+        model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
+        feature_extractor = model.features
+
+        # Freeze feature extractor parameters
+        for param in feature_extractor.parameters():
+            param.requires_grad = False
+
+        # Custom classifier
+        classifier = nn.Sequential(
+            feature_extractor,
+            nn.Conv2d(self.configs.model.in_features, 64, kernel_size=1, bias=self.configs.model.bias),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, bias=self.configs.model.bias),
+            nn.ReLU(),
+            nn.Conv2d(64, 32, kernel_size=3, bias=self.configs.model.bias),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.Flatten(start_dim=1),
+            nn.Linear(32, 32),
+            nn.ReLU(),
+            nn.Linear(32, self.configs.model.num_classes)
+        )
+
+        return classifier
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -74,7 +99,6 @@ class FastFlowerClassifier(L.LightningModule):
         Returns:
             torch.Tensor: Predicted class scores (logits).
         """
-        x = self.feature_extractor(x)  # CNN feature extraction
         x = self.classifier(x)  # Classification head
         return x
 
