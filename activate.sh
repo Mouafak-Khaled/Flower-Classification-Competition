@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e  # Exit on error
-
 ENV_NAME="flower_cls_env"
 
 # Check if the environment exists
