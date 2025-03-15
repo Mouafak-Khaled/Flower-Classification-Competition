@@ -8,7 +8,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 from urllib.error import URLError, HTTPError
-from loaders.logging_configs import setup_logging
+from utils.logging_configs import setup_logging
 
 
 setup_logging()
@@ -360,7 +360,7 @@ def read_processed_data(root_dir: Path, mode: str, extension: Optional[str] = 'j
             if not images:
                 continue
 
-            label = int(directory.name)  # Use folder name as label
+            label = int(directory.name) - 1  # Use folder name as label
             data.extend([(img.resolve(), label) for img in images])
 
     if not data:
