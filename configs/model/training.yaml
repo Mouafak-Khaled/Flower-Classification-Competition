@@ -1,11 +1,11 @@
 optimizer:
-  _target_: torch.optim.Adam
-  lr: 0.001
-  weight_decay: 0.0001
+  _target_: torch.optim.AdamW
+  lr: 1e-3
+  weight_decay: 0
 
 scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
-    step_size: 50
+    step_size: 25
     gamma: 0.1
 
 loss:

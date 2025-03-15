@@ -1,4 +1,4 @@
 model:
-  backbone: "resnet18"
+  in_features: 576
   num_classes: 17
   bias: True

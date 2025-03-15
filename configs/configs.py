@@ -89,8 +89,8 @@ class TrainingConfig:
 
 @dataclass
 class Configs:
-    model: ModelConfig  # ✅ Model-specific configurations
-    training: TrainingConfig  # ✅ Training-specific configurations
+    model: LightModelConfig
+    training: TrainingConfig
 
 
 """
