@@ -1,6 +1,6 @@
 import random
 from pathlib import Path
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, Dict
 from omegaconf import DictConfig
 from hydra.utils import instantiate
 from data.dataset import FlowerDataset
@@ -52,7 +52,7 @@ def get_dataset(
     return dataset
 
 
-def get_datasets(cfg: DictConfig) -> Dict[str, Dataset]:
+def get_datasets(cfg: DictConfig, transforms: Optional[Dict[str, Any]] = None) -> Dict[str, Dataset]:
     """
     Creates dataset instances for training, validation, and testing using the provided Hydra configuration.
 
@@ -75,7 +75,11 @@ def get_datasets(cfg: DictConfig) -> Dict[str, Dataset]:
     root_dir = Path(cfg.dataset.root_dir).resolve()
 
     # Instantiate dataset transformations
-    transforms = {mode: instantiate(cfg.dataset.transforms[mode]) for mode in DatasetMode.list()}
+
+    transforms = {
+        mode: transforms[mode] if transforms else instantiate(cfg.dataset.transforms[mode]) \
+        for mode in DatasetMode.list()
+    }
 
     # Create dataset instances for each mode
     datasets = {
