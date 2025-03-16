@@ -1,6 +1,7 @@
 import torch
 import torchmetrics
 
+
 def accuracy(
     scores: torch.Tensor,
     target: torch.Tensor,
