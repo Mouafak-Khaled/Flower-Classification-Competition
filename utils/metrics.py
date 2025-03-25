@@ -28,6 +28,6 @@ def accuracy(
     preds = torch.argmax(scores, dim=1)
 
     # Initialize accuracy metric
-    acc_metric = torchmetrics.Accuracy(task="multiclass", num_classes=num_classes).to(device)
+    acc_metric = torchmetrics.Accuracy(multiclass=True, num_classes=num_classes).to(device)
 
     return acc_metric(preds, target)
