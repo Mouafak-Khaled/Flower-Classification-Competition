@@ -2,7 +2,7 @@ dataloader:
   train:
     num_workers: 0
     pin_memory: True
-    batch_size: 32
+    batch_size: 128
     shuffle: True  # Shuffle for training
 
   val:

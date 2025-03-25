@@ -1,4 +1,4 @@
 model:
-  in_features: 576
+  in_features: 3
   num_classes: 17
-  bias: True
+  bias: False

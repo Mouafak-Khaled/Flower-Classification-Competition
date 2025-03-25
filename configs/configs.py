@@ -100,5 +100,6 @@ Register the configurations with Hydra's ConfigStore
 """
 cs = ConfigStore.instance()
 cs.store(name="data_configs", node=DataConfigs)
-cs.store(name="model_configs", node=Configs)
+cs.store(name="light_model_configs", node=Configs)
+cs.store(name="large_model_configs", node=Configs)
 
