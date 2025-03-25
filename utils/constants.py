@@ -19,15 +19,14 @@ class DatasetMode(str, Enum):
     VALIDATION = "val"
     TEST = "test"
 
-    # Immutable tuple for valid modes (prevents modification)
-    VALID_MODES: Tuple["DatasetMode", ...] = (TRAIN, VALIDATION, TEST)
 
     @classmethod
     def list(cls) -> Tuple["DatasetMode", ...]:
         """Returns all dataset modes as DatasetMode instances."""
-        return cls.VALID_MODES
+        return tuple(cls)  # Dynamically gets all enum members
+
 
     @classmethod
     def values(cls) -> Tuple[str, ...]:
         """Returns all dataset modes as string values."""
-        return tuple(mode.value for mode in cls.VALID_MODES)
+        return tuple(mode.value for mode in cls)
