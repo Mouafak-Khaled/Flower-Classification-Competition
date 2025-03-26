@@ -2,27 +2,38 @@ defaults:
   - _self_
 
 dataset:
-  root_dir: "../dataset/processed"
+  dataset_url: "https://www.robots.ox.ac.uk/~vgg/data/flowers/17/17flowers.tgz"
+  archive_filename: "17flowers.tgz"
+  root_dir: "../dataset"
+  extract_dir: "../dataset/raw"
+  processed_dir: "../dataset/processed"
+  metadata_file: "../dataset/raw/jpg/files.txt"
+  images_per_class: 80
+  image_extension: "jpg"
+  train_split: 0.6
+  val_split: 0.2
+  test_split: 0.2
+  seed: 42
 
-  # Transforms configuration for each split
-  transforms:
-    train:
-      _target_: torchvision.transforms.Compose
-      transforms:
-        - _target_: torchvision.transforms.Resize
-          size: [224, 224]
-        - _target_: torchvision.transforms.ToTensor
+# Transforms configuration for each split
+transforms:
+  train:
+    _target_: torchvision.transforms.Compose
+    transforms:
+      - _target_: torchvision.transforms.Resize
+        size: [224, 224]
+      - _target_: torchvision.transforms.ToTensor
 
-    val:
-      _target_: torchvision.transforms.Compose
-      transforms:
-        - _target_: torchvision.transforms.Resize
-          size: [224, 224]
-        - _target_: torchvision.transforms.ToTensor
+  val:
+    _target_: torchvision.transforms.Compose
+    transforms:
+      - _target_: torchvision.transforms.Resize
+        size: [224, 224]
+      - _target_: torchvision.transforms.ToTensor
 
-    test:
-      _target_: torchvision.transforms.Compose
-      transforms:
-        - _target_: torchvision.transforms.Resize
-          size: [224, 224]
-        - _target_: torchvision.transforms.ToTensor
+  test:
+    _target_: torchvision.transforms.Compose
+    transforms:
+      - _target_: torchvision.transforms.Resize
+        size: [224, 224]
+      - _target_: torchvision.transforms.ToTensor
