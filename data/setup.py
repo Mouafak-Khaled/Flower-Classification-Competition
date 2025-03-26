@@ -251,7 +251,7 @@ def split_organize_dataset(
 
     # Load configuration values
     extract_dir = (Path(configurations["extract_dir"]) / "jpg").resolve()  # Image source directory
-    processed_data_dir = Path(configurations["processed_data_dir"])  # Output directory
+    processed_data_dir = Path(configurations["processed_dir"])  # Output directory
     train_ratio = configurations["train_split"]
     val_ratio = configurations["val_split"]
     test_ratio = configurations["test_split"]
