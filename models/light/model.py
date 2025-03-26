@@ -1,9 +1,9 @@
 import torch.nn as nn
-from models.base_model import BaseFlowerClassifer
+from models.base_model import BaseFlowerClassifier
 import torchvision.models as models
 
 
-class FastFlowerClassifier(BaseFlowerClassifer):
+class FastFlowerClassifier(BaseFlowerClassifier):
     """
     A modular classifier for transfer learning, supporting pre-trained MobileNetV3-Small as a backbone.
 
