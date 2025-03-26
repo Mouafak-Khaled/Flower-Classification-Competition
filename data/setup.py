@@ -160,43 +160,34 @@ def read_data_from_txt_file(
 
 def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[Dict[int, List[str]]]:
     """
-    Executes the dataset preparation pipeline, including downloading, extracting, and parsing dataset metadata.
+    Executes the dataset preparation pipeline.
 
     This function performs the following steps:
-    1. Download Dataset: Retrieves the dataset archive from a specified URL.
-    2. Extract Dataset: Extracts the dataset contents into a specified directory.
-    3. Read Metadata: Reads and parses image metadata from a text file.
+    1. Downloads the dataset from a specified URL.
+    2. Extracts the dataset contents into a specified directory.
+    3. Reads and parses image metadata from a text file.
 
     Args:
         configurations (Dict[str, Any]): Dictionary containing dataset configuration parameters.
-            Expected keys:
-            - "dataset_url" (str): URL of the dataset to download.
-            - "root_dir" (Path): Directory where the dataset will be stored.
-            - "archive_filename" (str): Name of the dataset archive file.
-            - "extract_dir" (Path): Directory where extracted dataset contents will be stored.
-            - "file_list_path" (Path): Path to the text file containing image metadata.
 
     Returns:
-        Optional[Dict[int, List[str]]]: A dictionary mapping class IDs to lists of image names:
-            - `int`: The corresponding class ID.
-            - `List[str]`: A list of images belong to the corresponding class.
-
-        Returns `None` if any step in the pipeline fails.
+        Optional[Dict[int, List[str]]]: A dictionary mapping class IDs to lists of image names.
 
     Raises:
         FileNotFoundError: If the specified dataset metadata file is missing.
         HTTPError: If an HTTP error occurs during dataset download.
         URLError: If the dataset URL is unreachable or invalid.
-        OSError: If file system-related errors occur (e.g., permission issues).
+        OSError: If file system-related errors occur.
         ValueError: If the dataset metadata file is empty or incorrectly formatted.
         Exception: If any other unexpected error occurs.
     """
+
     try:
         dataset_url = configurations["dataset_url"]
         download_dir = Path(configurations["root_dir"]).resolve()
         archive_filename = configurations["archive_filename"]
         extract_dir = Path(configurations["extract_dir"]).resolve() # Fixed incorrect key spacing
-        file_list_path = Path(configurations["txt_file"]).resolve()
+        file_list_path = Path(configurations["metadata_file"]).resolve()
 
         # Step 1: Download the dataset
         dataset_downloaded = download_dataset(dataset_url, download_dir, archive_filename)
@@ -237,24 +228,17 @@ def process_dataset_pipeline(configurations: Dict[str, Any]) -> Optional[Dict[in
 
 
 def split_organize_dataset(
-        dataset_metadata: List[Tuple[str, int]],
+        dataset_metadata: Dict[int, List[str]],
         configurations: Dict[str, Any]
 ):
     """
-    Splits a list of (image, label) tuples into training, validation, and test sets based on given ratios.
-    Organizes images into structured directories `{processed_data_dir}/train/{class_id}/`, `{processed_data_dir}/val/{class_id}/`, etc.
+    Splits a dictionary of image metadata into training, validation, and test sets.
+
+    This function organizes images into structured directories based on the given ratios.
 
     Args:
-        dataset_metadata (List[Tuple[str, int]]): A list where each element is:
-            - `str`: Image filename (relative to `extract_dir`).
-            - `int`: Corresponding class label.
-        configurations (Dict[str, Any]): Configuration dictionary containing:
-            - "extract_dir" (str): Directory where extracted dataset is stored.
-            - "processed_data_dir" (str): Directory where split dataset will be saved.
-            - "train_split" (float): Proportion of dataset for training.
-            - "val_split" (float): Proportion of dataset for validation.
-            - "test_split" (float): Proportion of dataset for testing.
-            - "seed" (int): Random seed for reproducibility.
+        dataset_metadata (Dict[int, List[str]]): A dictionary mapping class IDs to lists of image names.
+        configurations (Dict[str, Any]): Dictionary containing configuration parameters.
 
     Returns:
         None
@@ -262,7 +246,7 @@ def split_organize_dataset(
     Raises:
         ValueError: If split ratios do not sum to 1.
         FileNotFoundError: If an image file is missing.
-        Exception: For unexpected errors.
+        Exception: If any other unexpected error occurs.
     """
 
     # Load configuration values
