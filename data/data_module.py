@@ -1,6 +1,6 @@
 import lightning as L
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Dict
 from hydra.utils import instantiate
 from omegaconf import OmegaConf, DictConfig
 from data.loaders import get_dataset, get_dataloader
@@ -112,7 +112,7 @@ class FlowerDataModule(L.LightningDataModule):
         Returns:
             DataLoader: A PyTorch DataLoader configured for the train dataset.
         """
-        return get_dataloader(self.train_dataset, mode='train', cfg=self.configs.dataloader)
+        return get_dataloader(self.train_dataset, mode='train', cfg=self.configs)
 
 
     def val_dataloader(self):
@@ -122,7 +122,7 @@ class FlowerDataModule(L.LightningDataModule):
         Returns:
             DataLoader: A PyTorch DataLoader configured for the validation dataset.
         """
-        return get_dataloader(self.val_dataset, mode='val', cfg=self.configs.dataloader)
+        return get_dataloader(self.val_dataset, mode='val', cfg=self.configs)
 
 
     def test_dataloader(self):
@@ -132,7 +132,7 @@ class FlowerDataModule(L.LightningDataModule):
         Returns:
             DataLoader: A PyTorch DataLoader configured for the test dataset.
         """
-        return get_dataloader(self.test_dataset, mode='test', cfg=self.configs.dataloader)
+        return get_dataloader(self.test_dataset, mode='test', cfg=self.configs)
 
 
     def _get_transforms(self, mode: str) -> Optional[Any]:
@@ -146,7 +146,7 @@ class FlowerDataModule(L.LightningDataModule):
             Optional[Any]: The transformations for the specified mode, or None if not defined.
         """
         if self.transforms is None:
-            return instantiate(self.configs.dataset.transforms[mode])
+            return instantiate(self.configs.transforms[mode])
         return self.transforms.get(mode, None) if self.transforms else None
 
 
