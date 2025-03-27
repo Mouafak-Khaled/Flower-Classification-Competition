@@ -40,6 +40,7 @@ class BaseFlowerClassifier(L.LightningModule):
         self.loss_fn = instantiate(self.configs.loss)
 
         # Track outputs per batch for epoch-level metrics
+        self._epoch_outputs = {"train": [], "val": [], "test": []}
         self.epoch_outputs = {"train": [], "val": [], "test": []}
 
 
@@ -90,10 +91,11 @@ class BaseFlowerClassifier(L.LightningModule):
         loss = self.loss_fn(y_hat, y)
 
         # Store batch outputs for epoch-level metrics
-        self.epoch_outputs[mode].append({'predictions': y_hat, 'labels': y, 'loss': loss})
+        self._epoch_outputs[mode].append({'predictions': y_hat, 'labels': y, 'loss': loss})
 
         # Log loss per batch
         self.log(f"{mode}_loss_step", loss, prog_bar=True, on_step=True, on_epoch=False)
+
         return loss, y_hat, y
 
 
@@ -104,7 +106,7 @@ class BaseFlowerClassifier(L.LightningModule):
         Args:
             mode (str): One of 'train', 'val', or 'test' indicating the current phase.
         """
-        outputs = self.epoch_outputs[mode]
+        outputs = self._epoch_outputs[mode]
 
         if not outputs:
             return
@@ -121,8 +123,10 @@ class BaseFlowerClassifier(L.LightningModule):
         self.log(f"{mode}_loss_epoch", avg_loss, prog_bar=True, on_epoch=True)
         self.log(f"{mode}_acc_epoch", epoch_acc, prog_bar=True, on_epoch=True)
 
+        self.epoch_outputs[mode].append({"loss": avg_loss.item(), "accuracy": epoch_acc.item()})
+
         # Clear stored batch outputs
-        self.epoch_outputs[mode].clear()
+        self._epoch_outputs[mode].clear()
 
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
