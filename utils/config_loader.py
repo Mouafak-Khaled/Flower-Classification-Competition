@@ -63,7 +63,7 @@ def load_hydra_config(config_dir: Path, config_name: str) -> DictConfig:
         Exception: If any error occurs during configuration loading or composition.
     """
     try:
-        with initialize(config_path=str(config_dir)):
+        with initialize(config_path=str(config_dir), version_base=None):
             cfg = compose(config_name=config_name)
             logging.info("Hydra configuration loaded successfully.")
             return cfg
