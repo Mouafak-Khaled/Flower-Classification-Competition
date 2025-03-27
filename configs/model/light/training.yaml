@@ -1,7 +1,8 @@
 optimizer:
   _target_: torch.optim.AdamW
-  lr: 1e-3
+  lr: 3e-3
   weight_decay: 0
+
 
 scheduler:
     _target_: torch.optim.lr_scheduler.StepLR
@@ -11,4 +12,4 @@ scheduler:
 loss:
   _target_: torch.nn.CrossEntropyLoss
 
-epochs: 100
+epochs: 32

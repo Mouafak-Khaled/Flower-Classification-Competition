@@ -10,3 +10,5 @@ scheduler:
 
 loss:
   _target_: torch.nn.CrossEntropyLoss
+
+epochs: 32
